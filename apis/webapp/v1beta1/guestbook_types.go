@@ -23,6 +23,22 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// ServiceBindingWorkloadReference defines a subset of corev1.ObjectReference with extensions
+type ServiceBindingWorkloadReference struct {
+	// API version of the referent.
+	APIVersion string `json:"apiVersion"`
+	// Kind of the referent.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+	Kind string `json:"kind"`
+	// Name of the referent.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+	Name string `json:"name,omitempty"`
+	// Selector is a query that selects the workload or workloads to bind the service to
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	// Containers describes which containers in a Pod should be bound to
+	Containers []string `json:"containers,omitempty"`
+}
+
 // GuestbookSpec defines the desired state of Guestbook
 type GuestbookSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -30,6 +46,9 @@ type GuestbookSpec struct {
 
 	// Foo is an example field of Guestbook. Edit guestbook_types.go to remove/update
 	Foo string `json:"foo,omitempty"`
+
+	// Workload is a reference to an object
+	Workload ServiceBindingWorkloadReference `json:"workload"`
 }
 
 // GuestbookStatus defines the observed state of Guestbook

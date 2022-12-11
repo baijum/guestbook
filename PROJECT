@@ -1,0 +1,17 @@
+domain: muthukadan.net
+layout:
+- go.kubebuilder.io/v4-alpha
+multigroup: true
+projectName: guestbook
+repo: github.com/baijum/guestbook
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: muthukadan.net
+  group: webapp
+  kind: Guestbook
+  path: github.com/baijum/guestbook/apis/webapp/v1beta1
+  version: v1beta1
+version: "3"

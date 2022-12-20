@@ -18,11 +18,19 @@ package webapp
 
 import (
 	"context"
+	"fmt"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	webappv1beta1 "github.com/baijum/guestbook/apis/webapp/v1beta1"
 )
@@ -31,6 +39,15 @@ import (
 type GuestbookReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	ctrl   controller.Controller
+}
+
+var watchMap map[string]string = map[string]string{}
+
+func validateLabels(fromSB, fromResource map[string]string) bool {
+	fmt.Println("From SB:", fromSB)
+	fmt.Println("From resource:", fromResource)
+	return true
 }
 
 //+kubebuilder:rbac:groups=webapp.muthukadan.net,resources=guestbooks,verbs=get;list;watch;create;update;patch;delete
@@ -48,15 +65,41 @@ type GuestbookReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.1/pkg/reconcile
 func (r *GuestbookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
-
-	// TODO(user): your logic here
-
+	mapWorkloadToSB := func(a client.Object) []reconcile.Request {
+		gbList := &webappv1beta1.GuestbookList{}
+		opts := &client.ListOptions{}
+		if err := r.List(context.Background(), gbList, opts); err != nil {
+			return []reconcile.Request{}
+		}
+		reply := make([]reconcile.Request, 0, len(gbList.Items))
+		for _, sb := range gbList.Items {
+			if sb.Spec.Workload.Kind == a.GetObjectKind().GroupVersionKind().Kind &&
+				validateLabels(sb.Spec.Workload.Selector.MatchLabels, a.GetLabels()) {
+				reply = append(reply, reconcile.Request{NamespacedName: types.NamespacedName{
+					Namespace: sb.Namespace,
+					Name:      sb.Name,
+				}})
+			}
+		}
+		return reply
+	}
+	resource := &unstructured.Unstructured{}
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}
+	resource.SetGroupVersionKind(gvk)
+	if _, ok := watchMap[gvk.String()]; !ok {
+		watchMap[gvk.String()] = ""
+		r.ctrl.Watch(
+			&source.Kind{Type: resource},
+			handler.EnqueueRequestsFromMapFunc(mapWorkloadToSB))
+	}
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GuestbookReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	ctrl, err := ctrl.NewControllerManagedBy(mgr).
 		For(&webappv1beta1.Guestbook{}).
-		Complete(r)
+		Build(r)
+	r.ctrl = ctrl
+	return err
 }
